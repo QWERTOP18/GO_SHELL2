@@ -4,25 +4,124 @@ import (
 	"io"
 	"os/exec"
 	"time"
+	
 	//"github.com/codegangsta/inject"
 )
 
 type Job struct {
-	cmds    []*exec.Cmd       // 実行中のコマンド
-	dir     string            // コマンドが実行されるディレクトリ
-	started bool              // ジョブが開始されたかどうか
-	Env     map[string]string // 環境変数
-	Stdin   io.Reader         // 標準入力
-	Stdout  io.Writer         // 標準出力
-	Stderr  io.Writer         // 標準エラー
-	ShowCMD bool              // デバッグ用: コマンドの詳細を表示
-	timeout time.Duration     // タイムアウトの設定
-
-	CmdName   string // コマンドの名前
-	IsRunning bool   // ジョブが実行中かどうか
+	cmds    []*exec.Cmd
+	dir     string               
+	Env     map[string]string
+	Stdin   io.Reader      
+	Stdout  io.Writer      
+	Stderr  io.Writer      
+	ShowCMD bool           
+	timeout time.Duration  
+	
+	CmdName   string
+	IsRunning bool
+// 	ExtraFiles []*os.File
+	gpid int
 }
 
+// type Cmd struct {
+// 	Path string
+// 	Args []string
+// 	Env []string
+// 	Dir string
+// 	Stdin io.Reader
+// 	Stdout io.Writer
+// 	Stderr io.Writer
+// 	ExtraFiles []*os.File
+// 	SysProcAttr *syscall.SysProcAttr
+// 	Process *os.Process
+// 	ProcessState *os.ProcessState
+// 	Cancel func() error
+// 	WaitDelay time.Duration
+// }
+
 var Jobs []Job
+func (j *Job) writePrompt(prompt string) {
+	// プロンプトを表示
+	fmt.Println(prompt)
+}
+
+func (j *Job) Start() (gpid int, err error) {
+	var rd *io.PipeReader
+	var wr *io.PipeWriter
+	var length = len(j.cmds)
+
+	// コマンドを表示するオプションが有効な場合
+	if j.ShowCMD {
+		var cmds = make([]string, 0, 4)
+		for _, cmd := range j.cmds {
+			cmds = append(cmds, strings.Join(cmd.Args, " "))
+		}
+		j.writePrompt(strings.Join(cmds, " | "))
+	}
+	
+
+	// 最初のコマンドで新しいセッションを開始 (setsid() を呼び出し)
+	_, _, errno := syscall.Syscall(syscall.SYS_SETSID, 0, 0, 0)
+	if errno != 0 {
+		err = fmt.Errorf("setsid() failed: %v", errno)
+		return
+	}
+
+	// 最初のコマンドのプロセスグループIDを設定
+	for index, cmd := range j.cmds {
+		if index == 0 {
+			cmd.Stdin = j.Stdin
+		} else {
+			cmd.Stdin = rd
+		}
+		if index != length-1 {
+			rd, wr = io.Pipe() // パイプを作成
+			cmd.Stdout = wr
+			if j.PipeStdErrors {
+				cmd.Stderr = j.Stderr
+			} else {
+				cmd.Stderr = os.Stderr
+			}
+		}
+		if index == length-1 {
+			cmd.Stdout = j.Stdout
+			cmd.Stderr = j.Stderr
+		}
+
+		// コマンドを開始
+		err = cmd.Start()
+		if err != nil {
+			return
+		}
+
+		// 最初のコマンドのプロセスグループIDを設定
+		if index == 0 {
+			pgid := cmd.Process.Pid // 最初のコマンドのPIDを取得
+			err := syscall.Setpgid(cmd.Process.Pid, pgid) // 新しいプロセスグループを設定
+			if err != nil {
+				return gpid, fmt.Errorf("failed to setpgid for pid %d: %v", cmd.Process.Pid, err)
+			}
+			gpid = pgid // プロセスグループIDを設定
+		} else {
+			// その他のコマンドも最初のプロセスグループに設定
+			err := syscall.Setpgid(cmd.Process.Pid, gpid) // 最初のコマンドのPGIDを設定
+			if err != nil {
+				return gpid, fmt.Errorf("failed to setpgid for pid %d: %v", cmd.Process.Pid, err)
+			}
+		}
+	}
+
+	// 全てのコマンドが開始され、gpid が設定される
+	return gpid, nil
+}
+
+
+
+
+
+
+
 
 func Foreground(jobID int) error {
 	// if jobID < 0 || jobID >= len(Jobs) {
@@ -47,19 +146,3 @@ func Background(jobID int) error {
 
 	return nil
 }
-
-// type Cmd struct {
-// 	Path string
-// 	Args []string
-// 	Env []string
-// 	Dir string
-// 	Stdin io.Reader
-// 	Stdout io.Writer
-// 	Stderr io.Writer
-// 	ExtraFiles []*os.File
-// 	SysProcAttr *syscall.SysProcAttr
-// 	Process *os.Process
-// 	ProcessState *os.ProcessState
-// 	Cancel func() error
-// 	WaitDelay time.Duration
-// }

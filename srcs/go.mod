@@ -1,6 +1,6 @@
 module shell
 
-go 1.23.4
+go 1.18
 
 require (
 	github.com/chzyer/readline v1.5.1 // indirect
