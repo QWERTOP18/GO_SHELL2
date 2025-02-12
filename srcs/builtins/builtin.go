@@ -11,14 +11,16 @@ var builtinFuncs map[string]func([]string) int
 // initはmainよりも先に呼ばれる
 func init() {
 	builtinFuncs = map[string]func([]string) int{
-		"pwd":  pwd,
-		"cd":   cd,
-		"exit": exit,
-		"kill": kill,
-		"jobs": jobs,
-		"type": _type,
-		"fg":   fg,
-		"bg":   bg,
+		"pwd":    pwd,
+		"cd":     cd,
+		"exit":   exit,
+		"kill":   kill,
+		"jobs":   jobs,
+		"type":   _type,
+		"fg":     fg,
+		"bg":     bg,
+		"export": export,
+		"unset":  unset,
 	}
 }
 

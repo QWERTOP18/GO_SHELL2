@@ -5,6 +5,7 @@ import (
 	"os"
 	"runtime"
 	"shell/executor"
+	"shell/expand"
 	"strings"
 
 	"github.com/chzyer/readline"
@@ -37,6 +38,9 @@ func Start() {
 
 		// コマンドの実行
 		var exitStatus int
+		for i, arg := range args {
+			args[i] = expand.Expand(arg)
+		}
 		if args[len(args)-1] == "&" {
 			exitStatus = executor.ExecSimpleCommandAsync(args[:len(args)-1], os.Stdin, os.Stdout)
 		} else {

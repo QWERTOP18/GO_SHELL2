@@ -47,6 +47,7 @@ func ExecSimpleCommandSync(words []string, inputFile *os.File, outputFile *os.Fi
 	cmd.Stdin = inputFile
 	cmd.Stdout = outputFile
 	cmd.Stderr = os.Stderr
+	cmd.Env = os.Environ()
 	ch := make(chan struct{})
 
 	// シグナル転送用の goroutine を起動
